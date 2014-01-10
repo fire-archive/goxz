@@ -5,6 +5,8 @@
 
 ## Theory ##
 
+## Results ##
+
 ## Frequently asked questions ##
 
 ### Does this support the legacy lzma format? ###
@@ -19,7 +21,7 @@ Ideally, yes, since this is what the index field was built for. As such, it allo
 ### Why search for the xz-streams instead of the xz-blocks? ###
 The individual blocks lack a distinct magic number making it hard to accurately and easily identify them. On the other hand, the streams have a very distinct magic number sequence making it extremely easy to search for them and then speculatively decompress from that point on. Experience has shown that the number of false positive identifications was relatively low.
 
-### Can this library decompress all xz files in parallel? ###
+### Can this library decompress any xz files in parallel? ###
 No, the xz file must be created by concatenating a series of xz-streams. Even if each stream consists of multiple independently compressed blocks, the decompressor will not take advantage of the index field to random access the individual blocks.
 
 ## References ##
