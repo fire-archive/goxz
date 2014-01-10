@@ -1,5 +1,5 @@
 
-# Parallelized xz Compression Library for Go #
+# Parallelized XZ Compression Library for Go #
 
 ## Introduction ##
 
@@ -24,4 +24,4 @@ No, the xz file must be created by concatenating a series of xz-streams. Even if
 
 ## References ##
 
-* https://github.com/remyoudompheng/go-liblzma
+* (https://github.com/remyoudompheng/go-liblzma)
