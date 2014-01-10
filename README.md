@@ -24,4 +24,4 @@ No, the xz file must be created by concatenating a series of xz-streams. Even if
 
 ## References ##
 
-* [https://github.com/remyoudompheng/go-liblzma]
+* [go-liblzma](https://github.com/remyoudompheng/go-liblzma)
