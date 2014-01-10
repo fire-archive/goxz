@@ -24,6 +24,9 @@ The individual blocks lack a distinct magic number making it hard to accurately 
 ### Can this library decompress any xz files in parallel? ###
 No, the xz file must be created by concatenating a series of xz-streams. Even if each stream consists of multiple independently compressed blocks, the decompressor will not take advantage of the index field to random access the individual blocks.
 
+### How does the compression ratio compare to the stock C library? ###
+It will be slightly worse. The default uncompressed block-size is 1MiB which puts an upper limit on how large the dictionary size is and how efficient compression can get. The desparity is more noticeable when the input data is highly compressible (where a larger dictionary size benefits most). Compression identical to the C library can achieved by simply setting the number of worker routines to 0.
+
 ## References ##
 
 * [go-liblzma](https://github.com/remyoudompheng/go-liblzma)
