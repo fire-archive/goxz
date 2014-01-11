@@ -133,7 +133,7 @@ func encodeInit(preset int, check int) (*lzmaStream, error) {
 		C.uint32_t(preset),
 		C.lzma_check(check),
 	))
-	if (err != nil) {
+	if err != nil {
 		strm = nil
 	}
 	return strm, err
@@ -147,7 +147,7 @@ func decodeInit(memLimit int64, flags int) (*lzmaStream, error) {
 		(C.uint64_t)(memLimit),
 		(C.uint32_t)(flags),
 	))
-	if (err != nil) {
+	if err != nil {
 		strm = nil
 	}
 	return strm, err
