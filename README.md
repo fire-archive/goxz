@@ -27,11 +27,11 @@ areas that parallel decompression can still provide improvement.
 Ideally, yes, since this is what the index field was built for. As such, it
 allows random access decompression, and thus parallelized decompression.
 The problem with the index is that it is located at the end of a xz-stream.
-What this implies is that, the decompressor must be able to seek to the end of
-the file to read the index and then seek back to the individual xz-blocks.
-Since one of the primary applications of this library was for parallelized
-decompression in a streamed manner (where seek is not an available operation),
-this simply was not an acceptable solution.
+This implies that the decompressor must be able to seek to the end of the file
+to read the index and then seek back to the individual xz-blocks. Since one of
+the primary applications of this library was for parallelized decompression in a
+streamed manner (where seek is not an available operation), this simply was not
+an acceptable solution.
 
 ### Why search for the xz-streams instead of the xz-blocks? ###
 The individual blocks lack a distinct magic number making it hard to accurately
@@ -39,6 +39,11 @@ and easily identify them. On the other hand, the streams have a very distinct
 magic number sequence making it extremely easy to search for them and then
 speculatively decompress from that point on. Experience has shown that the
 number of false positive identifications was relatively low.
+
+Secondly, even if it were easy to identify the individual blocks, in order to
+decompress the block requires some information from the stream header (such as
+the check type). It becomes tricky to find the stream header that is also
+associated with a given block.
 
 ### Can this library decompress any xz files in parallel? ###
 No, the xz file must be created by concatenating a series of xz-streams.
@@ -58,3 +63,4 @@ number of worker routines to 0.
 
 * [liblzma](http://tukaani.org/xz/) - Standard C library for lzma compression
 * [go-liblzma](https://github.com/remyoudompheng/go-liblzma) - Go bindings for C library
+* [pxz](http://jnovy.fedorapeople.org/pxz/) - Parallel compression for xz
