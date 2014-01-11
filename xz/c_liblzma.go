@@ -2,11 +2,17 @@ package xz
 
 /*
 #cgo LDFLAGS: -llzma
-#include <lzma.h>
+#include "lzma.h"
+
+void initStream(lzma_stream* strm) {
+	lzma_stream _strm = LZMA_STREAM_INIT;
+	(*strm) = _strm;
+}
 */
 import "C"
 
-import _ "unsafe"
+import "unsafe"
+import "reflect"
 
 // Provide thin wrappers around functions and constants provided by the liblzma
 // library. The liblzma library by Lasse Collin is used because there are no
@@ -32,20 +38,37 @@ const lzma_SYNC_FLUSH = C.LZMA_SYNC_FLUSH
 const lzma_FULL_FLUSH = C.LZMA_FULL_FLUSH
 const lzma_FINISH = C.LZMA_FINISH
 
+// Encoder flag constants.
+const lzma_PRESET_DEFAULT = C.LZMA_PRESET_DEFAULT
+const lzma_PRESET_LEVEL_MASK = C.LZMA_PRESET_LEVEL_MASK
+const lzma_PRESET_EXTREME = C.LZMA_PRESET_EXTREME
+
+// Decoder flag constants.
+const lzma_TELL_NO_CHECK = C.LZMA_TELL_NO_CHECK
+const lzma_TELL_UNSUPPORTED_CHECK = C.LZMA_TELL_UNSUPPORTED_CHECK
+const lzma_TELL_ANY_CHECK = C.LZMA_TELL_ANY_CHECK
+const lzma_CONCATENATED = C.LZMA_CONCATENATED
+
+// Integrity check constants.
+const lzma_CHECK_NONE = C.LZMA_CHECK_NONE
+const lzma_CHECK_CRC32 = C.LZMA_CHECK_CRC32
+const lzma_CHECK_CRC64 = C.LZMA_CHECK_CRC64
+const lzma_CHECK_SHA256 = C.LZMA_CHECK_SHA256
+
 // Go error wrapper for underlying liblzma errors.
-type zerr struct {
+type lzmaErr struct {
 	code int
 }
 
-func newZerr(z *lzmaStream, code C.int) error {
+func newLzmaErr(code C.lzma_ret) error {
 	if code == lzma_OK {
 		return nil
 	} else {
-		return &zerr{int(code)}
+		return &lzmaErr{int(code)}
 	}
 }
 
-func (ze *zerr) Error() string {
+func (ze *lzmaErr) Error() string {
 	name := "[UNKNOWN] Unknown error"
 	switch ze.code {
 	case lzma_STREAM_END:
@@ -74,8 +97,8 @@ func (ze *zerr) Error() string {
 	return name
 }
 
-func zerrMatch(err error, errnoMatches ...int) bool {
-	if ze, ok := err.(*zerr); ok {
+func lzmaErrMatch(err error, errnoMatches ...int) bool {
+	if ze, ok := err.(*lzmaErr); ok {
 		for _, errMatch := range errnoMatches {
 			if ze.code == errMatch {
 				return true
@@ -85,8 +108,8 @@ func zerrMatch(err error, errnoMatches ...int) bool {
 	return false
 }
 
-func zerrIgnore(err error, errnoIgns ...int) error {
-	if zerrMatch(err, errnoIgns...) {
+func lzmaErrIgnore(err error, errnoIgns ...int) error {
+	if lzmaErrMatch(err, errnoIgns...) {
 		return nil
 	}
 	return err
@@ -94,3 +117,71 @@ func zerrIgnore(err error, errnoIgns ...int) error {
 
 // Go wrapper around the liblzma stream struct.
 type lzmaStream C.lzma_stream
+
+// Return a pointer to a blank version of a lzma_stream.
+func newStream() *lzmaStream {
+	strm := new(lzmaStream)
+	C.initStream((*C.lzma_stream)(strm))
+	return strm
+}
+
+// Initialize a compressor stream.
+func encodeInit(preset int, check int) (*lzmaStream, error) {
+	strm := newStream()
+	err := newLzmaErr(C.lzma_easy_encoder(
+		(*C.lzma_stream)(strm),
+		C.uint32_t(preset),
+		C.lzma_check(check),
+	))
+	if (err != nil) {
+		strm = nil
+	}
+	return strm, err
+}
+
+// Initialize a decompressor stream.
+func decodeInit(memLimit int64, flags int) (*lzmaStream, error) {
+	strm := newStream()
+	err := newLzmaErr(C.lzma_auto_decoder(
+		(*C.lzma_stream)(strm),
+		(C.uint64_t)(memLimit),
+		(C.uint32_t)(flags),
+	))
+	if (err != nil) {
+		strm = nil
+	}
+	return strm, err
+}
+
+// Generic lzma function to either encode or decode.
+func (z *lzmaStream) code(action int) error {
+	return newLzmaErr(C.lzma_code(
+		(*C.lzma_stream)(z),
+		(C.lzma_action(action)),
+	))
+}
+
+// Clean up the lzma stream.
+func (z *lzmaStream) end() {
+	C.lzma_end((*C.lzma_stream)(z))
+}
+
+// Set a Go slice as the input buffer.
+func (z *lzmaStream) setInput(buffer []byte) {
+	bufPtr, bufLen := slicePtrLen(buffer)
+	z.next_in = (*C.uint8_t)(unsafe.Pointer(bufPtr))
+	z.avail_in = C.size_t(bufLen)
+}
+
+// Set a Go slice as the output buffer.
+func (z *lzmaStream) setOutput(buffer []byte) {
+	bufPtr, bufLen := slicePtrLen(buffer)
+	z.next_out = (*C.uint8_t)(unsafe.Pointer(bufPtr))
+	z.avail_out = C.size_t(bufLen)
+}
+
+// Split a Go slice into a C pointer and length.
+func slicePtrLen(data []byte) (uintptr, int) {
+	dataSlice := (*reflect.SliceHeader)(unsafe.Pointer(&data))
+	return dataSlice.Data, dataSlice.Len
+}
