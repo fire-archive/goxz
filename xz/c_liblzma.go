@@ -17,6 +17,7 @@ import "C"
 
 import "unsafe"
 import "reflect"
+import "runtime"
 
 // Provide thin wrappers around functions and constants provided by the liblzma
 // library. The liblzma library by Lasse Collin is used because there are no
@@ -126,6 +127,7 @@ type lzmaStream C.lzma_stream
 func newStream() *lzmaStream {
 	strm := new(lzmaStream)
 	C.initStream((*C.lzma_stream)(strm))
+	runtime.SetFinalizer(strm, (*lzmaStream).end)
 	return strm
 }
 
@@ -167,7 +169,9 @@ func (z *lzmaStream) code(action int) error {
 
 // Clean up the lzma stream.
 func (z *lzmaStream) end() {
-	C.lzma_end((*C.lzma_stream)(z))
+	if z.internal != nil {
+		C.lzma_end((*C.lzma_stream)(z))
+	}
 }
 
 // Set a Go slice as the input buffer.
