@@ -1,11 +1,13 @@
-
 # Parallelized XZ Compression Library for Go #
 
 ## Introduction ##
+**THIS IS AN INCOMPLETE PROJECT**
 
 ## Theory ##
+*To be continued*
 
 ## Results ##
+*To be continued*
 
 ## Frequently asked questions ##
 
