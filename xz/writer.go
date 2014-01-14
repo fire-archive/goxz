@@ -21,6 +21,9 @@ func (w *Writer) Flush() error {
 	return nil
 }
 
+func (w *Writer) Reset() {
+}
+
 func (w *Writer) Close() error {
 	return nil
 }
