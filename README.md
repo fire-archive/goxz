@@ -56,7 +56,7 @@ the individual blocks.
 ### How does the compression ratio compare to the stock C library? ###
 It will be slightly worse. The default uncompressed block-size is 1MiB which
 puts an upper limit on how large the dictionary size is and how efficient
-compression can get. The desparity is more noticeable when the input data is
+compression can get. The disparity is more noticeable when the input data is
 highly compressible (where a larger dictionary size benefits most).
 Compression identical to the C library can be achieved by simply setting the
 number of worker routines to 0.
