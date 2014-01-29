@@ -1,13 +1,19 @@
 # Parallelized XZ Compression Library for Go #
 
 ## Introduction ##
+
 *INCOMPLETE PROJECT*
 
+
 ## Theory ##
+
 *To be continued*
 
+
 ## Results ##
+
 *To be continued*
+
 
 ## Frequently asked questions ##
 
@@ -60,6 +66,7 @@ compression can get. The disparity is more noticeable when the input data is
 highly compressible (where a larger dictionary size benefits most).
 Compression identical to the C library can be achieved by simply setting the
 number of worker routines to 0.
+
 
 ## References ##
 
