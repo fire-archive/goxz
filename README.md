@@ -17,59 +17,38 @@
 
 ## Frequently asked questions ##
 
-### Does this support the legacy lzma format? ###
-The compressor will always produce the modern xz file format. The decompressor
-can read the legacy lzma file format, but will not attempt to parallelize the
-decompression of it.
+### What exactly is lzma? ###
+Depending on the context, the term "lzma" can refer to a number of things. As a compression _algorithm_, the term refers to the Lempel–Ziv–Markov chain algorithm that provides lossless data compression. Currently, the lzma algorithm is implemented as the lzma1 and lzma2 filters. 
 
-### Why bother parallelizing decompression? ###
-In files where the compression ratio is high, parallel decompression doesn't
-achieve much since the consumer of the output likely can't keep up with the
-decompressed output. However, experience has shown that a large file often has
-sections of highly compressible data, sections of poorly compressible data, and
-everything in between. When decompressing a poorly compressible section, the
-process is often bounded by the CPU performance of a single core. It is in these
-areas that parallel decompression can still provide improvement.
+As a file format, "lzma" usually refers to either the legacy [LZMA_ALONE file format](http://svn.python.org/projects/external/xz-5.0.3/doc/lzma-file-format.txt) or the newer [XZ file format](http://tukaani.org/xz/xz-file-format-1.0.4.txt). Internally, the LZMA_ALONE format uses the lzma1 filter, while the XZ format usually uses the lzma2 filter. The LZMA_ALONE format is deprecated and almost entirely replaced by the XZ format in usage.
 
-### Why not use the xz-index for parallel decompression? ###
-Ideally, yes, since this is what the index field was built for. As such, it
-allows random access decompression, and thus parallelized decompression.
-The problem with the index is that it is located at the end of a xz-stream.
-This implies that the decompressor must be able to seek to the end of the file
-to read the index and then seek back to the individual xz-blocks. Since one of
-the primary applications of this library was for parallelized decompression in a
-streamed manner (where seek is not an available operation), this simply was not
-an acceptable solution.
+### What makes this library different from existing lzma/xz libraries? ###
+The main design goals were:
 
-### Why search for the xz-streams instead of the xz-blocks? ###
-The individual blocks lack a distinct magic number making it hard to accurately
-and easily identify them. On the other hand, the streams have a very distinct
-magic number sequence making it extremely easy to search for them and then
-speculatively decompress from that point on. Experience has shown that the
-number of false positive identifications was relatively low.
+* Provide parallelized compression and decompression of xz files
+* Provide seek abilities while reading xz files
 
-Secondly, even if it were easy to identify the individual blocks, in order to
-decompress the block requires some information from the stream header (such as
-the check type). It becomes tricky to find the stream header that is also
-associated with a given block.
+As far as the author is aware, neither of these two features are available in any open source Go library. To accomplish these, the library makes heavy use of the `liblzma` C implementation.
 
-### Can this library decompress any xz files in parallel? ###
-No, the xz file must be created by concatenating a series of xz-streams.
-Even if each stream consists of multiple independently compressed blocks,
-the decompressor will not take advantage of the index field to random access
-the individual blocks.
+### Are all xz files seekable? ###
+No, the xz file must consist of a series of independently compressed blocks. If each block size is too small, the compression rate suffers, but the file provide good random access properties. On the other hand, if each block size is too large, the compression rate benefits, but the file suffers from poor random access properties. By default, this library outputs blocks with a 1MiB chunk size. Thus, in the worst case, a seek will read up to (and discard) 1MiB worth of data. 
+
+The `xz` command-line tool typically outputs xz files with all the data compressed as a single block. While this library can satisfy the ReadSeeker interface for this file, seeking to the end of the file is equivalent to reading the entire file.
+
+### What formats does this library support? ###
+Primarily, this library encodes and decodes the XZ file format through the `goxz/xz` package. However, this library can also encode and decode the LZMA_ALONE file format through the `goxz/lzma` package. The LZMA_ALONE format is considered deprecated and use of it is not recommended. It is included in this library for completeness reasons.
 
 ### How does the compression ratio compare to the stock C library? ###
 It will be slightly worse. The default uncompressed block-size is 1MiB which
 puts an upper limit on how large the dictionary size is and how efficient
 compression can get. The disparity is more noticeable when the input data is
 highly compressible (where a larger dictionary size benefits most).
-Compression identical to the C library can be achieved by simply setting the
-number of worker routines to 0.
-
+Compression performance nearly identical to the C library can be achieved by simply setting the
+chunk size to -1.
 
 ## References ##
 
-* [liblzma](http://tukaani.org/xz/) - Standard C library for lzma compression
+* [liblzma](http://tukaani.org/xz/) - C library for LZMA/XZ compression
+* [compress/lzma](https://code.google.com/p/lzma/) - Pure Go implementation of the LZMA1 filter
 * [go-liblzma](https://github.com/remyoudompheng/go-liblzma) - Go bindings for C library
-* [pxz](http://jnovy.fedorapeople.org/pxz/) - Parallel compression for xz
+* [pxz](http://jnovy.fedorapeople.org/pxz/) - Parallel compression for XZ
