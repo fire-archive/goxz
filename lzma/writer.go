@@ -5,6 +5,7 @@
 package lzma
 
 import "io"
+
 import "bitbucket.org/rawr/goxz/lib"
 
 func NewWriter(wr io.Writer) (io.WriteCloser, error) {

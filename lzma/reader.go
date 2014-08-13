@@ -6,6 +6,7 @@ package lzma
 
 import "io"
 import "math"
+
 import "bitbucket.org/rawr/goxz/lib"
 
 func NewReader(rd io.Reader) (io.ReadCloser, error) {
