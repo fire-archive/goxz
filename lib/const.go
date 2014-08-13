@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.md file.
 
-// Provide thin wrappers around functions and constants provided by the liblzma
+// Provide thin wrappers around functions and constants given by the liblzma
 // library. The liblzma library by Lasse Collin is used because there are no
-// available pure Go implementations that support the newer xz file format.
+// available pure Go implementations that support the newer XZ file format.
 //
 // This wrapper library intended to be used by the lzma and xz libraries that
 // exist in the same parent package. The author of this package does not ensure
