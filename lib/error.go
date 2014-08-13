@@ -10,21 +10,19 @@ package lib
 */
 import "C"
 
-type Error struct {
-	Code int
-}
+type Error int
 
 func NewError(code C.lzma_ret) error {
 	if code == OK {
 		return nil
 	} else {
-		return &Error{int(code)}
+		return Error(code)
 	}
 }
 
-func (ze *Error) Error() string {
+func (ze Error) Error() string {
 	name := "[UNKNOWN] Unknown error"
-	switch ze.Code {
+	switch ze {
 	case STREAM_END:
 		name = "[STREAM_END] End of stream was reached"
 	case NO_CHECK:
@@ -51,10 +49,10 @@ func (ze *Error) Error() string {
 	return name
 }
 
-func ErrMatch(err error, errnoMatches ...int) bool {
-	if ze, ok := err.(*Error); ok {
+func ErrMatch(err error, errnoMatches ...Error) bool {
+	if ze, ok := err.(Error); ok {
 		for _, errMatch := range errnoMatches {
-			if ze.Code == errMatch {
+			if ze == errMatch {
 				return true
 			}
 		}
@@ -62,7 +60,7 @@ func ErrMatch(err error, errnoMatches ...int) bool {
 	return false
 }
 
-func ErrConvert(err error, errNew error, errnoIgns ...int) error {
+func ErrConvert(err error, errNew error, errnoIgns ...Error) error {
 	if ErrMatch(err, errnoIgns...) {
 		return errNew
 	}
