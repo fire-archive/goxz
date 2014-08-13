@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.md file.
 
-// Package lzma implements reading/writing of files in the LZMA_ALONE format.
+// Package lzma implements reading and writing files in the LZMA_ALONE format.
 // This file format is deprecated. As such, consider using the XZ format.
 package lzma
 
