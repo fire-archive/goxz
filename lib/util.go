@@ -26,14 +26,26 @@ func CSlicePtrLen(data []byte) (*C.uint8_t, C.size_t) {
 	return (*C.uint8_t)(unsafe.Pointer(ptr)), C.size_t(len)
 }
 
-type LinearBuffer struct {
+type Buffer struct {
 	buf   []byte // Valid data between the ptrLo and ptrHi pointers.
 	ptrLo int    // Range: 0     <= ptrLo <= ptrHi
 	ptrHi int    // Range: ptrLo <= ptrHi <= len(buf)
 }
 
+func NewBuffer(size int) *Buffer {
+	return &Buffer{make([]byte, size), 0, 0}
+}
+
+func (lb *Buffer) CountReady() int {
+	return lb.ptrHi - lb.ptrLo
+}
+
+func (lb *Buffer) CountAvail() int {
+	return len(lb.buf) - lb.ptrHi
+}
+
 // Move all data to the front of the buffer.
-func (lb *LinearBuffer) Compact() ([]byte, int) {
+func (lb *Buffer) Compact() ([]byte, int) {
 	cnt := lb.ptrHi - lb.ptrLo
 	if cnt > 0 {
 		copy(lb.buf[:cnt], lb.buf[lb.ptrLo:lb.ptrHi])
@@ -41,9 +53,58 @@ func (lb *LinearBuffer) Compact() ([]byte, int) {
 	return lb.buf, cnt
 }
 
-func (lb *LinearBuffer) tryReset() {
+func (lb *Buffer) ReadSlice(rd io.Reader, cnt int) ([]byte, error) {
+	data, err := lb.PeekSlice(rd, cnt)
+	lb.ptrLo += len(data)
+	return data, err
+}
+
+func (lb *Buffer) PeekSlice(rd io.Reader, cnt int) ([]byte, error) {
+	if _, err := lb.copyFull(rd, cnt); err != nil {
+		return nil, err
+	}
+	rdyBuf := lb.buf[lb.ptrLo:lb.ptrHi] // Ready buffer
+	data := rdyBuf[:cnt]                // Only bytes to read
+	return data, nil
+}
+
+// Ensure that at least N valid bytes are in the buffer.
+func (lb *Buffer) copyFull(rd io.Reader, n int) (int, error) {
+	lb.tryReset()
+
+	needCopy := n - lb.CountReady()
+	if needCopy <= 0 {
+		return 0, nil // No bytes copied
+	}
+
+	// Compact if not enough available bytes
+	if needCopy > lb.CountAvail() {
+		lb.Compact()
+	}
+
+	// If buffer not large enough, then panic
+	availBuf := lb.buf[lb.ptrHi:] // Available buffer
+	data := availBuf[:n]          // Only bytes to copy
+
+	cnt, err := io.ReadFull(rd, data)
+	if err == io.EOF && lb.CountReady() == 0 {
+		return cnt, err
+	}
+	lb.ptrHi += cnt
+	return cnt, errConvert(err, io.EOF, io.ErrUnexpectedEOF)
+}
+
+func (lb *Buffer) Bytes() []byte {
+	return lb.buf
+}
+
+func (lb *Buffer) Reset() {
+	lb.ptrLo, lb.ptrHi = 0, 0
+}
+
+func (lb *Buffer) tryReset() {
 	if lb.ptrLo == len(lb.buf) && lb.ptrHi == len(lb.buf) {
-		lb.ptrLo, lb.ptrHi = 0, 0
+		lb.Reset()
 	}
 }
 
@@ -52,14 +113,11 @@ type StreamReader struct {
 	reader io.Reader
 	closed bool
 	end    error // Mark stream end
-	LinearBuffer
+	*Buffer
 }
 
-func NewStreamReader(z *Stream, rd io.Reader, buf []byte, cnt int) *StreamReader {
-	if cnt < 0 || cnt > len(buf) || len(buf) < 1 {
-		panic("Invalid initialization buffer")
-	}
-	return &StreamReader{z, rd, false, nil, LinearBuffer{buf, 0, cnt}}
+func NewStreamReader(z *Stream, rd io.Reader, buf *Buffer) *StreamReader {
+	return &StreamReader{z, rd, false, nil, buf}
 }
 
 func (rs *StreamReader) Read(data []byte) (cnt int, err error) {
@@ -90,29 +148,27 @@ func (rs *StreamReader) Close() error {
 
 func (rs *StreamReader) streamRead(code int) error {
 	var zErr, rErr error
-	var rAvail, rRdy, rCnt int
+	var rCnt int
 
 	// Read data into the ready buffer
-	if rAvail = len(rs.buf) - rs.ptrHi; rAvail > 0 {
+	rs.tryReset()
+	if rs.CountAvail() > 0 {
 		rCnt, rErr = rs.reader.Read(rs.buf[rs.ptrHi:])
 		rs.ptrHi += rCnt
 	}
 
 	// Process the data using the lzma stream
-	if rRdy = rs.ptrHi - rs.ptrLo; rRdy > 0 {
+	if rCnt = rs.CountReady(); rCnt > 0 {
 		rs.stream.SetInput(rs.buf[rs.ptrLo:rs.ptrHi])
 		zErr = rs.stream.Code(code)
-
-		rCnt = rRdy - int(rs.stream.stream.avail_in) // Amount consumed
-		rs.ptrLo += rCnt
+		rs.ptrLo += rCnt - int(rs.stream.stream.avail_in) // Amount consumed
 	}
 
-	rs.tryReset()
 	return errFirst(zErr, rErr) // Stream error is more serious
 }
 
 func (rs *StreamReader) handleErr(cnt int, err error) error {
-	if ErrMatch(err, STREAM_END) {
+	if errMatch(err, Error(STREAM_END)) {
 		err, rs.end = io.EOF, io.EOF // STREAM_END is this reader's true EOF.
 	}
 	if cnt == 0 && err == io.EOF && rs.end == nil {
@@ -128,14 +184,11 @@ type StreamWriter struct {
 	stream *Stream
 	writer io.Writer
 	closed bool
-	LinearBuffer
+	*Buffer
 }
 
-func NewStreamWriter(z *Stream, wr io.Writer, buf []byte, cnt int) *StreamWriter {
-	if cnt < 0 || cnt > len(buf) || len(buf) < 1 {
-		panic("Invalid initialization buffer")
-	}
-	return &StreamWriter{z, wr, false, LinearBuffer{buf, 0, cnt}}
+func NewStreamWriter(z *Stream, wr io.Writer, buf *Buffer) *StreamWriter {
+	return &StreamWriter{z, wr, false, buf}
 }
 
 func (ws *StreamWriter) Write(data []byte) (cnt int, err error) {
@@ -164,28 +217,26 @@ func (ws *StreamWriter) Close() (err error) {
 	for err == nil {
 		err = ws.streamWrite(FINISH)
 	}
-	return ErrConvert(err, nil, STREAM_END) // Stream end is expected
+	return errConvert(err, nil, Error(STREAM_END)) // Stream end is expected
 }
 
 func (ws *StreamWriter) streamWrite(code int) error {
 	var zErr, wErr error
-	var wAvail, wRdy, wCnt int
+	var wCnt int
 
 	// Process the data using the lzma stream
-	if wAvail = len(ws.buf) - ws.ptrHi; wAvail > 0 {
+	if wCnt = ws.CountAvail(); wCnt > 0 {
 		ws.stream.SetOutput(ws.buf[ws.ptrHi:])
 		zErr = ws.stream.Code(code)
-
-		wCnt = wAvail - int(ws.stream.stream.avail_out) // Amount consumed
-		ws.ptrHi += wCnt
+		ws.ptrHi += wCnt - int(ws.stream.stream.avail_out) // Amount consumed
 	}
 
 	// Write ready bytes to the underlying transport
-	if wRdy = ws.ptrHi - ws.ptrLo; wRdy > 0 {
+	if ws.CountReady() > 0 {
 		wCnt, wErr = ws.writer.Write(ws.buf[ws.ptrLo:ws.ptrHi])
 		ws.ptrLo += wCnt
 	}
-
 	ws.tryReset()
+
 	return errFirst(wErr, zErr) // Short-write is more serious
 }

@@ -8,7 +8,7 @@ package lib
 #cgo LDFLAGS: -llzma
 #include "lzma.h"
 
-void init_stream(lzma_stream* strm) {
+void lzma_stream_init_(lzma_stream* strm) {
   lzma_stream _strm = LZMA_STREAM_INIT;
   (*strm) = _strm;
 }
@@ -28,7 +28,7 @@ func (z *Stream) C() *C.lzma_stream {
 
 func NewStream() *Stream {
 	strm := new(Stream)
-	C.init_stream(strm.C())
+	C.lzma_stream_init_(strm.C())
 	runtime.SetFinalizer(strm, (*Stream).End)
 	return strm
 }
