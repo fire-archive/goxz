@@ -20,7 +20,7 @@ func NewStreamFlags() *StreamFlags {
 	flags := new(StreamFlags)
 	flags.version = 0
 	flags.check = CHECK_NONE
-	flags.backward_size = VLI_UNKNOWN
+	flags.backward_size = C.lzma_vli(vliUnknown)
 	return flags
 }
 
@@ -64,6 +64,14 @@ func (fl *StreamFlags) GetCheck() int {
 	return int(fl.check)
 }
 
+func (fl *StreamFlags) SetCheck(check int) {
+	fl.check = C.lzma_check(check)
+}
+
 func (fl *StreamFlags) GetBackwardSize() int64 {
 	return int64(fl.backward_size)
+}
+
+func (fl *StreamFlags) SetBackwardSize(size int64) {
+	fl.backward_size = C.lzma_vli(size)
 }

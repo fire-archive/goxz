@@ -29,12 +29,12 @@ func (f *Filters) C() *C.lzma_filter {
 
 func NewFilters() *Filters {
 	filters := new(Filters)
-	filters.filters[0].id = VLI_UNKNOWN
+	filters.filters[0].id = C.lzma_vli(vliUnknown)
 	return filters
 }
 
 func (f *Filters) Append(id int64, opts Options) {
-	f.filters[f.size+1].id = VLI_UNKNOWN // Panic early if out of bounds
+	f.filters[f.size+1].id = C.lzma_vli(vliUnknown) // Panic if out of bounds
 	f.filters[f.size].id = C.lzma_vli(id)
 	f.filters[f.size].options = opts.Pointer()
 	f.options = append(f.options, opts) // Memory reference for Go's GC

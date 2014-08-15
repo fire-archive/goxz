@@ -49,22 +49,21 @@ func (ze Error) Error() string {
 	return name
 }
 
-func ErrMatch(err error, errnoMatches ...Error) bool {
-	if ze, ok := err.(Error); ok {
-		for _, errMatch := range errnoMatches {
-			if ze == errMatch {
-				return true
-			}
+func errConvert(err error, errNew error, errChks ...error) error {
+	for _, errChk := range errChks {
+		if err == errChk {
+			return errNew
 		}
 	}
-	return false
+	return err
 }
 
-func ErrConvert(err error, errNew error, errnoIgns ...Error) error {
-	if ErrMatch(err, errnoIgns...) {
-		return errNew
-	}
-	return err
+func errMatch(err error, errChks ...error) bool {
+	return err != nil && errConvert(err, nil, errChks...) == nil
+}
+
+func errIgnore(err error, errChks ...error) error {
+	return errConvert(err, nil, errChks...)
 }
 
 func errFirst(errs ...error) error {

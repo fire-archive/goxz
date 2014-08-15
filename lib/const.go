@@ -18,9 +18,7 @@ package lib
 */
 import "C"
 
-import "math"
-
-// Status code constants:
+// Status code constants.
 const (
 	OK                = C.LZMA_OK
 	STREAM_END        = C.LZMA_STREAM_END
@@ -36,7 +34,7 @@ const (
 	PROG_ERROR        = C.LZMA_PROG_ERROR
 )
 
-// Flushing mode constants:
+// Flushing mode constants.
 const (
 	RUN        = C.LZMA_RUN
 	SYNC_FLUSH = C.LZMA_SYNC_FLUSH
@@ -44,7 +42,7 @@ const (
 	FINISH     = C.LZMA_FINISH
 )
 
-// Encoder flag constants:
+// Encoder flag constants.
 const (
 	PRESET_LEVEL0 = iota
 	PRESET_LEVEL1
@@ -61,7 +59,7 @@ const (
 	PRESET_EXTREME    = C.LZMA_PRESET_EXTREME
 )
 
-// Decoder flag constants:
+// Decoder flag constants.
 const (
 	TELL_NO_CHECK          = C.LZMA_TELL_NO_CHECK
 	TELL_UNSUPPORTED_CHECK = C.LZMA_TELL_UNSUPPORTED_CHECK
@@ -69,7 +67,7 @@ const (
 	CONCATENATED           = C.LZMA_CONCATENATED
 )
 
-// Integrity check constants:
+// Integrity check constants.
 const (
 	CHECK_NONE   = C.LZMA_CHECK_NONE
 	CHECK_CRC32  = C.LZMA_CHECK_CRC32
@@ -77,7 +75,7 @@ const (
 	CHECK_SHA256 = C.LZMA_CHECK_SHA256
 )
 
-// Index iteration mode constants:
+// Index iteration mode constants.
 const (
 	INDEX_ITER_ANY            = C.LZMA_INDEX_ITER_ANY
 	INDEX_ITER_BLOCK          = C.LZMA_INDEX_ITER_BLOCK
@@ -85,17 +83,17 @@ const (
 	INDEX_ITER_STREAM         = C.LZMA_INDEX_ITER_STREAM
 )
 
-// Variable length integer constants:
+// Variable length integer constants.
 const (
 	VLI_MAX       = C.LZMA_VLI_MAX
 	VLI_BYTES_MAX = C.LZMA_VLI_BYTES_MAX
-	VLI_UNKNOWN   = math.MaxUint64
+	VLI_UNKNOWN   = C.LZMA_VLI_UNKNOWN
 )
 
 // HACK(jtsai): LZMA_VLI_UNKNOWN is effectively -1 which overflows when Go tries
-//  to cast the constant to the lzma_vli type which is unsigned. Since the
-//  lzma_vli type is a uint64_t, then the VLI_UNKNOWN constant essentially gets
-//  casted as MaxUint64.
+//  to cast the constant to the lzma_vli type which is unsigned. Instead, assign
+//  the value to a variable, which side-steps Go's static checking.
+var vliUnknown = int64(VLI_UNKNOWN)
 
 // Filter identification consts:
 const (
@@ -110,7 +108,7 @@ const (
 	FILTER_SPARC    = C.LZMA_FILTER_SPARC
 )
 
-// File format constants:
+// File format constants.
 var (
 	HEADER_MAGIC = []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}
 	FOOTER_MAGIC = []byte{'Y', 'Z'}

@@ -7,6 +7,10 @@ package lib
 /*
 #cgo LDFLAGS: -llzma
 #include "lzma.h"
+
+uint32_t lzma_block_header_size_decode_(uint8_t size) {
+  return lzma_block_header_size_decode(size);
+}
 */
 import "C"
 
@@ -19,16 +23,14 @@ func (b *Block) C() *C.lzma_block {
 	return (*C.lzma_block)(&b.block)
 }
 
-func NewBlock() *Block {
-	blk := new(Block)
-	blk.block.version = 0
-	blk.block.compressed_size = VLI_UNKNOWN
-	blk.block.uncompressed_size = VLI_UNKNOWN
-	return blk
+func NewBlock(check int) *Block {
+	filters := NewFilters()
+	return NewBlockCustom(check, filters, VLI_UNKNOWN, VLI_UNKNOWN)
 }
 
 func NewBlockCustom(check int, filters *Filters, compressSize int64, uncompressSize int64) *Block {
-	blk := NewBlock()
+	blk := new(Block)
+	blk.block.version = 0
 	blk.SetCheck(check)
 	blk.SetFilters(filters)
 	blk.SetCompressedSize(compressSize)
@@ -73,6 +75,15 @@ func (b *Block) HeaderDecode(data []byte) error {
 func (b *Block) HeaderSize() (int, error) {
 	err := NewError(C.lzma_block_header_size(b.C()))
 	return int(b.block.header_size), err
+}
+
+func (b *Block) HeaderSizeDecode(val byte) (size int, err error) {
+	size = int(C.lzma_block_header_size_decode_(C.uint8_t(val)))
+	if size < BLOCK_HEADER_SIZE_MIN || size > BLOCK_HEADER_SIZE_MAX {
+		return size, Error(DATA_ERROR)
+	}
+	b.block.header_size = C.uint32_t(size)
+	return
 }
 
 func (b *Block) CompressedSize(unpadSize int64) (int64, error) {
