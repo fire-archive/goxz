@@ -20,11 +20,19 @@ func errRecover(err *error) {
 	}
 }
 
-func errIgnore(err error, errIgns ...error) error {
-	for _, errIgn := range errIgns {
-		if err == errIgn {
-			return nil
+func errConvert(err error, errNew error, errChks ...error) error {
+	for _, errChk := range errChks {
+		if err == errChk {
+			return errNew
 		}
 	}
 	return err
+}
+
+func errMatch(err error, errChks ...error) bool {
+	return err != nil && errConvert(err, nil, errChks...) == nil
+}
+
+func errIgnore(err error, errChks ...error) error {
+	return errConvert(err, nil, errChks...)
 }
