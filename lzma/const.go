@@ -8,7 +8,7 @@ package lzma
 
 import "bitbucket.org/rawr/goxz/lib"
 
-const _BUFFER_SIZE = 1 << 16
+const bufSize = 1 << 16
 
 // These constants are copied from the lib package, so that code that imports
 // "goxz/lzma" does not also have to import "goxz/lib".

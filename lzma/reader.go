@@ -14,5 +14,5 @@ func NewReader(rd io.Reader) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return lib.NewStreamReader(stream, rd, make([]byte, _BUFFER_SIZE), 0), nil
+	return lib.NewStreamReader(stream, rd, lib.NewBuffer(bufSize)), nil
 }
