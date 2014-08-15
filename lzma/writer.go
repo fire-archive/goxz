@@ -21,5 +21,5 @@ func NewWriterLevel(wr io.Writer, level int) (io.WriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return lib.NewStreamWriter(stream, wr, make([]byte, _BUFFER_SIZE), 0), nil
+	return lib.NewStreamWriter(stream, wr, lib.NewBuffer(bufSize)), nil
 }
