@@ -7,10 +7,13 @@ package xz
 import "io"
 import "os"
 import "math"
+import "bytes"
 
 import "bitbucket.org/rawr/goxz/lib"
 
-func decodeIndex(rd io.ReadSeeker) (index *lib.Index, err error) {
+var padZeros = []byte{0, 0, 0, 0}
+
+func DecodeIndex(rd io.ReadSeeker) (index *lib.Index, err error) {
 	defer errRecover(&err)
 
 	pos, err := rd.Seek(0, os.SEEK_END)
@@ -29,12 +32,12 @@ func decodeIndex(rd io.ReadSeeker) (index *lib.Index, err error) {
 	return index, nil
 }
 
-func prevIndex(rd io.ReadSeeker, pos int64) (index *lib.Index, newPos int64) {
+func prevIndex(rd io.ReadSeeker, pos int64) (*lib.Index, int64) {
 	var err error
 
 	padding := unrollStreamPadding(rd)
 	flags := unrollStreamFooter(rd)
-	index = unrollStreamIndex(rd, flags.GetBackwardSize())
+	index := unrollStreamIndex(rd, flags.GetBackwardSize())
 
 	// Store the flags and padding
 	errPanic(index.StreamFlags(flags))
@@ -50,48 +53,49 @@ func prevIndex(rd io.ReadSeeker, pos int64) (index *lib.Index, newPos int64) {
 
 func unrollStreamPadding(rd io.ReadSeeker) (padding int64) {
 	var err error
-	buf := [4]byte{}
+	padAlias := int64(len(padZeros))
+	buf := make([]byte, padAlias)
 	for ok := true; ok; {
-		_, err = rd.Seek(-int64(len(buf)), os.SEEK_CUR)
+		_, err = rd.Seek(-padAlias, os.SEEK_CUR)
 		errPanic(err)
-		_, err = io.ReadFull(rd, buf[:])
-		errPanic(err)
+		_, err = io.ReadFull(rd, buf)
+		errPanic(errConvert(err, io.ErrUnexpectedEOF, io.EOF))
 
-		if ok = buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0; ok {
-			_, err = rd.Seek(-4, os.SEEK_CUR)
+		if ok = bytes.Equal(buf, padZeros); ok {
+			_, err = rd.Seek(-padAlias, os.SEEK_CUR)
 			errPanic(err)
-			padding += 4
+			padding += padAlias
 		}
 	}
 	return padding
 }
 
-func unrollStreamFooter(rd io.ReadSeeker) (flags *lib.StreamFlags) {
+func unrollStreamFooter(rd io.ReadSeeker) *lib.StreamFlags {
 	var err error
-	buf := [lib.STREAM_HEADER_SIZE]byte{}
-	_, err = rd.Seek(-lib.STREAM_HEADER_SIZE, os.SEEK_CUR)
+	buf := make([]byte, lib.STREAM_FOOTER_SIZE)
+	_, err = rd.Seek(-lib.STREAM_FOOTER_SIZE, os.SEEK_CUR)
 	errPanic(err)
-	_, err = io.ReadFull(rd, buf[:])
-	errPanic(err)
-	_, err = rd.Seek(-lib.STREAM_HEADER_SIZE, os.SEEK_CUR)
+	_, err = io.ReadFull(rd, buf)
+	errPanic(errConvert(err, io.ErrUnexpectedEOF, io.EOF))
+	_, err = rd.Seek(-lib.STREAM_FOOTER_SIZE, os.SEEK_CUR)
 	errPanic(err)
 
-	flags = lib.NewStreamFlags()
-	errPanic(flags.FooterDecode(buf[:]))
+	flags := lib.NewStreamFlags()
+	errPanic(flags.FooterDecode(buf))
 	return flags
 }
 
-func unrollStreamIndex(rd io.ReadSeeker, size int64) (index *lib.Index) {
+func unrollStreamIndex(rd io.ReadSeeker, size int64) *lib.Index {
 	var err error
 	_, err = rd.Seek(-size, os.SEEK_CUR)
 	errPanic(err)
 
 	// Create a stream decoder for the index.
-	index = new(lib.Index)
+	index := new(lib.Index)
 	stream, err := index.NewStreamDecoder(math.MaxUint64)
 	errPanic(err)
 	rdLimit := io.LimitReader(rd, size)
-	rdStream := lib.NewStreamReader(stream, rdLimit, make([]byte, 1<<12), 0)
+	rdStream := lib.NewStreamReader(stream, rdLimit, lib.NewBuffer(1<<12))
 
 	// Keep reading the index until EOF.
 	for err == nil {

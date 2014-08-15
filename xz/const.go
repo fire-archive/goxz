@@ -16,6 +16,8 @@ const (
 	DefaultCompression = lib.PRESET_DEFAULT
 )
 
-// Chunksize configruation constants:
-const CHUNKSIZE_INFINITE = -1
-const CHUNKSIZE_DEFAULT = 1 << 20
+// Chunksize configuration constants.
+const (
+	ChunkStream  = -1      // Disables chunking, single chunk per stream
+	ChunkDefault = 1 << 20 // Defaults to 1 MiB chunks
+)
