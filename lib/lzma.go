@@ -29,3 +29,11 @@ func NewOptionsLZMA(preset int) (*OptionsLZMA, error) {
 func (opts *OptionsLZMA) Pointer() unsafe.Pointer {
 	return unsafe.Pointer(opts.C())
 }
+
+func (opts *OptionsLZMA) GetDictSize() uint32 {
+	return uint32(opts.dict_size)
+}
+
+func (opts *OptionsLZMA) SetDictSize(size uint32) {
+	opts.dict_size = C.uint32_t(size)
+}

@@ -11,8 +11,6 @@ import "bytes"
 
 import "bitbucket.org/rawr/goxz/lib"
 
-var padZeros = []byte{0, 0, 0, 0}
-
 func DecodeIndex(rd io.ReadSeeker) (index *lib.Index, err error) {
 	defer errRecover(&err)
 

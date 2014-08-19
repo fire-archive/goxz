@@ -9,19 +9,20 @@ import "io"
 type Writer struct {
 }
 
-func NewWriter(w io.Writer) (*Writer, error) {
+func NewWriter(wr io.Writer) (*Writer, error) {
+	return NewWriterLevel(wr, DefaultCompression)
+}
+
+func NewWriterLevel(wr io.Writer, level int) (*Writer, error) {
+	return NewWriterCustom(wr, level, CheckDefault, ChunkDefault, MaxWorkersDefault)
+}
+
+func NewWriterCustom(wr io.Writer, level int, checkType int, chunkSize int, maxWorkers int) (*Writer, error) {
 	return nil, nil
 }
 
 func (w *Writer) Write(data []byte) (n int, err error) {
 	return 0, nil
-}
-
-func (w *Writer) Flush() error {
-	return nil
-}
-
-func (w *Writer) Reset() {
 }
 
 func (w *Writer) Close() error {
