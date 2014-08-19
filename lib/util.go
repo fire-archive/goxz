@@ -232,7 +232,7 @@ func (ws *StreamWriter) streamWrite(code int) error {
 	}
 
 	// Write ready bytes to the underlying transport
-	if ws.CountReady() > 0 {
+	if ws.CountReady() > 0 && ws.writer != nil {
 		wCnt, wErr = ws.writer.Write(ws.buf[ws.ptrLo:ws.ptrHi])
 		ws.ptrLo += wCnt
 	}
