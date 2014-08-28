@@ -37,6 +37,15 @@ func (z *Stream) appendRef(ref interface{}) {
 	z.refs = append(z.refs, ref)
 }
 
+func (z *Stream) CodeSlice(action int, input []byte, output []byte) (error, int, int) {
+	z.SetInput(input)
+	z.SetOutput(output)
+	err := z.Code(action)
+	cntIn := len(input) - int(z.stream.avail_in)
+	cntOut := len(output) - int(z.stream.avail_out)
+	return err, cntIn, cntOut
+}
+
 func (z *Stream) Code(action int) error {
 	return NewError(C.lzma_code(z.C(), C.lzma_action(action)))
 }

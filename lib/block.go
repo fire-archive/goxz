@@ -99,10 +99,6 @@ func (b *Block) TotalSize() int64 {
 	return int64(C.lzma_block_total_size(b.C()))
 }
 
-func (b *Block) BufferBound(uncompressSize int64) int64 {
-	return int64(C.lzma_block_buffer_bound(C.size_t(uncompressSize)))
-}
-
 func (b *Block) GetVersion() int {
 	return int(b.block.version)
 }
@@ -154,4 +150,8 @@ func (b *Block) GetRawCheck() []byte {
 		buf[idx] = byte(b.block.raw_check[idx])
 	}
 	return buf[:size]
+}
+
+func BlockBufferBound(uncompressSize int64) int64 {
+	return int64(C.lzma_block_buffer_bound(C.size_t(uncompressSize)))
 }
