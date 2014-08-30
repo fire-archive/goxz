@@ -4,9 +4,6 @@
 
 package xz
 
-import "fmt"
-import "os"
-
 import "io"
 import "sync"
 import "bytes"
@@ -16,6 +13,8 @@ import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/golib/bufpipe"
 import "bitbucket.org/rawr/goxz/lib"
 
+import "fmt"
+import "os"
 var _ = fmt.Println
 var _ = os.Stderr
 
