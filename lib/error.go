@@ -48,29 +48,3 @@ func (ze Error) Error() string {
 	}
 	return name
 }
-
-func errConvert(err error, errNew error, errChks ...error) error {
-	for _, errChk := range errChks {
-		if err == errChk {
-			return errNew
-		}
-	}
-	return err
-}
-
-func errMatch(err error, errChks ...error) bool {
-	return err != nil && errConvert(err, nil, errChks...) == nil
-}
-
-func errIgnore(err error, errChks ...error) error {
-	return errConvert(err, nil, errChks...)
-}
-
-func errFirst(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
