@@ -12,7 +12,7 @@ import "bytes"
 import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/goxz/lib"
 
-func DecodeIndex(rd io.ReaderAt) (index *lib.Index, err error) {
+func decodeIndex(rd io.ReaderAt) (index *lib.Index, err error) {
 	// Implementation based on pixz/reader.c
 	defer errs.Recover(&err)
 
