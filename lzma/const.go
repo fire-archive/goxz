@@ -6,9 +6,8 @@
 // This file format is deprecated. As such, consider using the XZ format.
 package lzma
 
+import "math"
 import "bitbucket.org/rawr/goxz/lib"
-
-const bufSize = 1 << 16
 
 // These constants are copied from the lib package, so that code that imports
 // "goxz/lzma" does not also have to import "goxz/lib".
@@ -18,3 +17,9 @@ const (
 	BestCompression    = lib.PRESET_LEVEL9
 	DefaultCompression = lib.PRESET_DEFAULT
 )
+
+// Use the maximum amount of memory necessary.
+const maxMemory = math.MaxUint64
+
+// Expected error condition when a stream ends.
+var streamEnd = lib.Error(lib.STREAM_END)
