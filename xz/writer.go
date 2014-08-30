@@ -5,7 +5,6 @@
 package xz
 
 import "io"
-
 import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/goxz/lib"
 

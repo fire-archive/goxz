@@ -6,7 +6,6 @@
 package xz
 
 import "errors"
-
 import "bitbucket.org/rawr/goxz/lib"
 
 const kiloByte = 1 << 10
