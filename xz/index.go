@@ -8,7 +8,6 @@ import "io"
 import "os"
 import "math"
 import "bytes"
-
 import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/goxz/lib"
 
