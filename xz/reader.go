@@ -9,7 +9,11 @@ import "io"
 type Reader struct {
 }
 
-func NewReader(r io.Reader) (*Reader, error) {
+func NewReader(rd io.Reader) (*Reader, error) {
+	return NewReaderCustom(rd, BufferDefault, WorkersDefault)
+}
+
+func NewReaderCustom(rd io.Reader, maxBuffer int, maxWorkers int) (*Reader, error) {
 	return nil, nil
 }
 
