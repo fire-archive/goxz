@@ -7,16 +7,12 @@ package xz
 import "io"
 import "sync"
 import "bytes"
-import "encoding/binary"
 import "crypto/sha256"
+import "encoding/binary"
+import "runtime"
 import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/golib/bufpipe"
 import "bitbucket.org/rawr/goxz/lib"
-
-import "fmt"
-import "os"
-var _ = fmt.Println
-var _ = os.Stderr
 
 type pipeStats struct {
 	*bufpipe.BufferPipe
@@ -48,13 +44,13 @@ type blockWriter struct {
 	rdBuf  *bufpipe.BufferPipe
 	wrBuf  *bufpipe.BufferPipe
 
-	group       sync.WaitGroup
 	inFreeChan  chan *pipeStats
 	inWorkChan  chan *pipeStats
 	outFreeChan chan *pipeStats
 	outWorkChan chan *pipeStats
 	errChan     chan error
 	doneChan    chan bool
+	lastErr     error
 }
 
 func newBlockWriter(wr io.Writer, flags *lib.StreamFlags, index *lib.Index, filters *lib.Filters, chunkSize int64, maxWorkers int) *blockWriter {
@@ -95,7 +91,6 @@ func newBlockWriter(wr io.Writer, flags *lib.StreamFlags, index *lib.Index, filt
 		blkWr.errChan = make(chan error, 1)
 		blkWr.doneChan = make(chan bool)
 
-		blkWr.group.Add(2)
 		go blkWr.monitor()
 		go blkWr.writer()
 	case blkWr.chunkSize != ChunkStream: // Synchronous blocks
@@ -117,19 +112,22 @@ func newBlockWriter(wr io.Writer, flags *lib.StreamFlags, index *lib.Index, filt
 		errs.Panic(err)
 	}
 
-	// Finalize, call end
+	// Finalize, ensure we shut everything down.
+	runtime.SetFinalizer(blkWr, (*blockWriter).terminate)
 
 	return blkWr
 }
 
 func (w *blockWriter) Write(data []byte) (cnt int, err error) {
-	errs.Recover(&err)
+	defer errs.Recover(&err)
 	switch {
 	case w.maxWorkers != WorkersSync: // Asynchronous operation
 		for cnt < len(data) {
 			if w.buffer == nil {
-				w.buffer = <-w.inFreeChan
-				w.buffer.idx = w.idx
+				if w.buffer = <-w.inFreeChan; w.buffer == nil {
+					break
+				}
+				w.buffer.idx = w.idx // Give each block an identity
 				w.inWorkChan <- w.buffer
 				w.idx++
 			}
@@ -139,8 +137,13 @@ func (w *blockWriter) Write(data []byte) (cnt int, err error) {
 			if err == io.ErrShortWrite {
 				w.buffer.Close()
 				w.buffer = nil
+			} else if err != nil {
+				break
 			}
-			errs.Panic(errs.Ignore(err, io.ErrShortWrite))
+		}
+		if cnt != len(data) {
+			w.checkErr() // Bigger problem downstream
+			errs.Panic(io.ErrShortWrite)
 		}
 		return cnt, nil
 	case w.chunkSize == ChunkStream: // Synchronous stream
@@ -161,16 +164,11 @@ func (w *blockWriter) Write(data []byte) (cnt int, err error) {
 }
 
 func (w *blockWriter) Close() (err error) {
-	errs.Recover(&err)
+	defer errs.Recover(&err)
 	switch {
 	case w.maxWorkers != WorkersSync: // Asynchronous operation
-		if w.buffer != nil {
-			w.buffer.Close()
-		}
-		close(w.inWorkChan)
-
-		w.group.Wait()
-		errs.Panic(<-w.errChan)
+		w.terminate()
+		w.checkErr()
 	case w.chunkSize != ChunkStream: // Synchronous blocks
 		if w.rdBuf.Length() > 0 {
 			w.blockEncodeSync()
@@ -188,68 +186,138 @@ func (w *blockWriter) Close() (err error) {
 	return nil
 }
 
-/*
-func (w *blockWriter) monitor(maxWorkers int, chunkSize int64) {
-	defer close(w.outWorkChan)
+func (w *blockWriter) checkErr() {
+	errs.Panic(w.lastErr)
+	w.lastErr = <-w.errChan
+	errs.Panic(w.lastErr)
+}
 
-	targetCnt := 1 // Target number of allocated resources
-	var workerCnt, inBufCnt, outBufCnt int
-	maxOutSize := w.bufferBound(chunkSize)
+func (w *blockWriter) terminate() {
+	var err error
+	defer errs.Recover(&err)
+	if w.buffer != nil {
+		w.buffer.Close()
+		w.buffer = nil
+	}
+	close(w.inWorkChan)
+}
 
-	killChan := make(chan bool, chanBufSize)
-	deadChan := make(chan bool, chanBufSize)
-	blockChan := make(chan bool, chanBufSize)
-	for {
-		for ; workerCnt < targetCnt; workerCnt++ {
-			go w.worker(blockChan, killChan, deadChan)
-		}
-		for ; workerCnt > targetCnt; workerCnt-- {
-			go func() { killChan <- true }()
-		}
+func (w *blockWriter) monitor() {
+	inMode, outMode := bufpipe.LineDual, bufpipe.LineMono
+	if w.chunkSize == ChunkStream {
+		inMode, outMode = bufpipe.RingBlock, bufpipe.RingBlock
+	}
 
-		for ; inBufCnt < targetCnt; inBufCnt++ {
-			fmt.Println("Allocate input buffer")
-			go func() {
-				buf := newBuffer(make([]byte, chunkSize), true)
-				w.inFreeChan <- &pipeStats{buf, 0}
-			}()
-		}
-		for ; inBufCnt > targetCnt; inBufCnt-- {
-			fmt.Println("Free input buffer")
-			go func() { _ = <-w.inFreeChan }()
-		}
+	// Start up the individual resource monitors
+	cmdChan1 := make(chan int, chanBufSize)
+	cmdChan2 := make(chan int, chanBufSize)
+	cmdChan3 := make(chan int, chanBufSize)
+	defer close(cmdChan1)
+	defer close(cmdChan2)
+	defer close(cmdChan3)
+	go w.monitorWorkers(cmdChan1)
+	go w.monitorBuffers(cmdChan2, w.inFreeChan, w.inWorkChan, w.chunkSize, inMode)
+	go w.monitorBuffers(cmdChan3, w.outFreeChan, w.outWorkChan, w.maxChunkSize, outMode)
+	setResourceCount := func(resCnt int) {
+		cmdChan1 <- resCnt
+		cmdChan2 <- resCnt
+		cmdChan3 <- resCnt
+	}
 
-		for ; outBufCnt < targetCnt; outBufCnt++ {
-			fmt.Println("Allocate output buffer")
-			go func() {
-				buf := newBuffer(make([]byte, maxOutSize), false) // True if stream
-				w.outFreeChan <- &pipeStats{buf, 0, 0, 0, nil}
-			}()
-		}
-		for ; outBufCnt > targetCnt; outBufCnt-- {
-			fmt.Println("Free output buffer")
-			go func() { _ = <-w.outFreeChan }()
-		}
+	if w.chunkSize == ChunkStream { // Streamed mode
+		setResourceCount(1)
+		_ = <-w.doneChan
+	} else {
+		setResourceCount(8)
+		_ = <-w.doneChan
+	}
+}
 
-		// Evaluate whether to change target count
-		select {
-		case _ = <-blockChan:
-			// EVAL
-			fmt.Println("WORKER LEVEL: ", targetCnt)
-		case _ = <-deadChan:
-			// DEATH
+func (w *blockWriter) monitorBuffers(cmdChan chan int, freeChan, workChan chan *pipeStats, size int64, mode int) {
+	defer close(freeChan)
+
+	pipeSet := make(map[*pipeStats]bool)
+	defer func() {
+		// Remove all buffers from circulation
+		var buf *pipeStats
+		var ok bool
+		for len(pipeSet) > 0 {
+			select {
+			case buf, ok = <-freeChan:
+			case buf, ok = <-workChan:
+			}
+			if ok {
+				buf.Close()
+				delete(pipeSet, buf)
+			}
+		}
+	}()
+
+	// Dynamically allocate buffers
+	for resCnt := range cmdChan {
+		for len(pipeSet) < resCnt {
+			byteBuf := bufpipe.NewBufferPipe(make([]byte, size), mode)
+			buf := &pipeStats{byteBuf, 0, 0, 0, nil}
+			select {
+			case freeChan <- buf:
+				pipeSet[buf] = true
+			case _ = <-w.doneChan:
+				return
+			}
+		}
+		for len(pipeSet) > resCnt {
+			select {
+			case buf := <-freeChan:
+				delete(pipeSet, buf)
+			case _ = <-w.doneChan:
+				return
+			}
 		}
 	}
 }
-*/
 
-func (w *blockWriter) monitor() {
-	defer w.group.Done()
-	// defer group.Wait() // Wait for all workers to die
+func (w *blockWriter) monitorWorkers(cmdChan chan int) {
+	workerSet := []chan bool{}
+	group := new(sync.WaitGroup)
+	defer func() {
+		for _, killChan := range workerSet {
+			close(killChan)
+		}
+	}()
 
+	// Routine to close the output channel when all workers die
+	once := new(sync.Once)
+	onceFunc := func() {
+		go func() {
+			group.Wait()
+			close(w.outWorkChan)
+		}()
+	}
+
+	// Dynamically allocate workers
+	for resCnt := range cmdChan {
+		for len(workerSet) < resCnt {
+			killChan := make(chan bool)
+			group.Add(1)
+			go w.worker(group, killChan)
+			workerSet = append(workerSet, killChan)
+			once.Do(onceFunc)
+		}
+		for len(workerSet) > resCnt {
+			killChan := workerSet[len(workerSet)-1]
+			workerSet = workerSet[:len(workerSet)-1]
+			close(killChan)
+		}
+
+		select {
+		case _ = <-w.doneChan:
+			return
+		default:
+		}
+	}
 }
 
-func (w *blockWriter) worker(group *sync.WaitGroup) {
+func (w *blockWriter) worker(group *sync.WaitGroup, killChan chan bool) {
 	defer group.Done()
 
 	for inBuf := range w.inWorkChan {
@@ -259,7 +327,7 @@ func (w *blockWriter) worker(group *sync.WaitGroup) {
 
 		func() {
 			defer errs.Recover(&outBuf.err)
-			wrBuf, rdBuf := inBuf.BufferPipe, outBuf.BufferPipe
+			wrBuf, rdBuf := outBuf.BufferPipe, inBuf.BufferPipe
 			if w.chunkSize != ChunkStream { // Blocking mode
 				unpadSize, uncompSize := w.blockEncode(wrBuf, rdBuf)
 				outBuf.unpadSize, outBuf.uncompSize = unpadSize, uncompSize
@@ -272,19 +340,25 @@ func (w *blockWriter) worker(group *sync.WaitGroup) {
 		outBuf.Close()
 		inBuf.Reset()
 		w.inFreeChan <- inBuf
+
+		select {
+		case _ = <-w.doneChan:
+			return
+		case _ = <-killChan:
+			return
+		default:
+		}
 	}
 }
 
 func (w *blockWriter) writer() {
-	defer w.group.Done()
+	var err error
 	defer func() {
-		var err error
-		if errs.Recover(&err); err != nil {
-			w.errChan <- err
-		}
+		w.errChan <- err
 		close(w.errChan)
 		close(w.doneChan)
 	}()
+	defer errs.Recover(&err)
 
 	var index int64
 	buffers := make(map[int64]*pipeStats)
@@ -349,6 +423,7 @@ func (w *blockWriter) blockEncode(wrBuf, rdBuf *bufpipe.BufferPipe) (unpadSize, 
 	wrBuf.WriteMark(headerSize)
 
 	stream, err := block.NewStreamEncoder()
+	defer stream.End()
 	errs.Panic(err)
 
 	// Try normal compression
