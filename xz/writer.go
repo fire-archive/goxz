@@ -25,7 +25,7 @@ func NewWriterLevel(wr io.Writer, level int) (*Writer, error) {
 }
 
 func NewWriterCustom(wr io.Writer, level int, checkType int, chunkSize int64, maxWorkers int) (_ *Writer, err error) {
-	errs.Recover(&err)
+	defer errs.Recover(&err)
 
 	// Compose the stream header flags
 	flags := lib.NewStreamFlags()
@@ -60,7 +60,7 @@ func (w *Writer) Write(data []byte) (int, error) {
 }
 
 func (w *Writer) Close() (err error) {
-	errs.Recover(&err)
+	defer errs.Recover(&err)
 	if w.closed {
 		return nil
 	}
