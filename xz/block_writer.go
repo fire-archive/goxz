@@ -202,6 +202,8 @@ func (w *blockWriter) terminate() {
 	close(w.inWorkChan)
 }
 
+// Routine responsible for monitor progress and determining the optimal number
+// of workers to allocate.
 func (w *blockWriter) monitor() {
 	inMode, outMode := bufpipe.LineDual, bufpipe.LineMono
 	if w.chunkSize == ChunkStream {
@@ -228,11 +230,14 @@ func (w *blockWriter) monitor() {
 		setResourceCount(1)
 		_ = <-w.doneChan
 	} else {
+		// TODO(jtsai):
 		setResourceCount(8)
 		_ = <-w.doneChan
 	}
 }
 
+// Routine responsible for monitoring the buffer pool. It allocates and discards
+// buffers according to the number of resources dictated by the main monitor.
 func (w *blockWriter) monitorBuffers(cmdChan chan int, freeChan, workChan chan *pipeStats, size int64, mode int) {
 	defer close(freeChan)
 
@@ -276,6 +281,8 @@ func (w *blockWriter) monitorBuffers(cmdChan chan int, freeChan, workChan chan *
 	}
 }
 
+// Routine responsible for monitoring all the workers. It will spawn and kill
+// workers to match the level of requested workers.
 func (w *blockWriter) monitorWorkers(cmdChan chan int) {
 	workerSet := []chan bool{}
 	group := new(sync.WaitGroup)
@@ -317,6 +324,8 @@ func (w *blockWriter) monitorWorkers(cmdChan chan int) {
 	}
 }
 
+// Routine responsible for actually compressing data. Multiple of these workers
+// may be spun up by the monitorWorkers routine.
 func (w *blockWriter) worker(group *sync.WaitGroup, killChan chan bool) {
 	defer group.Done()
 
@@ -351,9 +360,17 @@ func (w *blockWriter) worker(group *sync.WaitGroup, killChan chan bool) {
 	}
 }
 
+// Routine responsible for only writing data to the underlying writer. When
+// completed blocks come in asynchronously, they may be out-of-order. The logic
+// here serializes the data before writing them.
 func (w *blockWriter) writer() {
+	buffers := make(map[int64]*pipeStats)
 	var err error
 	defer func() {
+		for _, buf := range buffers {
+			buf.Reset()
+			w.outFreeChan <- buf
+		}
 		w.errChan <- err
 		close(w.errChan)
 		close(w.doneChan)
@@ -361,7 +378,6 @@ func (w *blockWriter) writer() {
 	defer errs.Recover(&err)
 
 	var index int64
-	buffers := make(map[int64]*pipeStats)
 	for outBuf := range w.outWorkChan {
 		buffers[outBuf.idx] = outBuf
 		for buffers[index] != nil {
@@ -404,7 +420,7 @@ func (w *blockWriter) blockEncodeSync() {
 
 	w.wrBuf.Close()
 	defer w.wrBuf.Reset()
-	data, _ := w.wrBuf.ReadSlice()
+	data, _, _ := w.wrBuf.ReadSlices()
 	_, err := w.wr.Write(data)
 	errs.Panic(err)
 }
@@ -436,7 +452,7 @@ func (w *blockWriter) blockEncode(wrBuf, rdBuf *bufpipe.BufferPipe) (unpadSize, 
 	errs.Panic(errs.Ignore(err, io.ErrShortWrite, streamEnd))
 
 	if doLiteral { // Encode literal block if data is incompressible
-		_, rdSize := rdBuf.GetOffsets()
+		_, rdSize := rdBuf.GetPointers()
 		input, output := rdBuf.GetBuffer(), wrBuf.GetBuffer()
 		cnt, pad := w.literalBlockEncode(input[:rdSize], output)
 		unpadSize, uncompSize = int64(cnt-pad), int64(len(input))

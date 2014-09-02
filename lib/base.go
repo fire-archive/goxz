@@ -119,14 +119,14 @@ func (z *Stream) Process(code int, dst io.Writer, src io.Reader) (outCnt, inCnt 
 	var rdErr, wrErr, xzErr error
 	for {
 		for rdErr == nil && src != nil && z.inBuf.Length() == 0 {
-			buf, _ := z.inBuf.WriteSlice()
+			buf, _, _ := z.inBuf.WriteSlices()
 			rdCnt, rdErr = src.Read(buf)
 			z.inBuf.WriteMark(rdCnt)
 			inCnt += int64(rdCnt)
 		}
 
-		inBuf, _ := z.inBuf.ReadSlice()
-		outBuf, _ := z.outBuf.WriteSlice()
+		inBuf, _, _ := z.inBuf.ReadSlices()
+		outBuf, _, _ := z.outBuf.WriteSlices()
 		wrCnt, rdCnt, xzErr = z.CodeSlice(code, outBuf, inBuf)
 		z.inBuf.ReadMark(rdCnt)
 		z.outBuf.WriteMark(wrCnt)
@@ -137,7 +137,7 @@ func (z *Stream) Process(code int, dst io.Writer, src io.Reader) (outCnt, inCnt 
 		}
 
 		for wrErr == nil && dst != nil && z.outBuf.Length() > 0 {
-			buf, _ := z.outBuf.ReadSlice()
+			buf, _, _ := z.outBuf.ReadSlices()
 			wrCnt, wrErr = dst.Write(buf)
 			z.outBuf.ReadMark(wrCnt)
 			outCnt += int64(wrCnt)
@@ -162,14 +162,20 @@ func (z *Stream) ProcessPipe(code int, dst, src *bufpipe.BufferPipe) (outCnt, in
 	var inBuf, outBuf []byte
 	for {
 		if src != nil {
-			if inBuf, err = src.ReadSlice(); err != nil {
+			if inBuf, _, err = src.ReadSlices(); err != nil {
 				return outCnt, inCnt, err
+			}
+			if len(inBuf) > chunkSize {
+				inBuf = inBuf[:chunkSize]
 			}
 		}
 
 		if dst != nil {
-			if outBuf, err = dst.WriteSlice(); err != nil {
+			if outBuf, _, err = dst.WriteSlices(); err != nil {
 				return outCnt, inCnt, err
+			}
+			if len(outBuf) > chunkSize {
+				outBuf = outBuf[:chunkSize]
 			}
 		}
 
