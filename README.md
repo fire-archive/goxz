@@ -45,8 +45,8 @@ No, the xz file must consist of a series of independently compressed blocks.
 If each block size is too small, the compression rate suffers, but the file
 provide good random access properties. On the other hand, if each block size is
 too large, the compression rate benefits, but the file suffers from poor random
-access properties. By default, this library outputs blocks with a 1MiB chunk
-size. Thus, in the worst case, a seek will read up to (and discard) 1MiB worth
+access properties. By default, this library outputs blocks with a 8MiB chunk
+size. Thus, in the worst case, a seek will read up to (and discard) 8MiB worth
 of data.
 
 The `xz` command-line tool typically outputs xz files with all the data
@@ -62,7 +62,7 @@ considered deprecated and use of it is not recommended. It is included in this
 library for completeness reasons.
 
 ### How does the compression ratio compare to the stock C library? ###
-It will be slightly worse. The default uncompressed block-size is 1MiB which
+It will be slightly worse. The default uncompressed block-size is 8MiB which
 puts an upper limit on how large the dictionary size is and how efficient
 compression can get. The disparity is more noticeable when the input data is
 highly compressible (where a larger dictionary size benefits most).
@@ -75,3 +75,4 @@ simply setting the chunk size to ChunkStream.
 * [compress/lzma](https://code.google.com/p/lzma/) - Pure Go implementation of the LZMA1 filter
 * [go-liblzma](https://github.com/remyoudompheng/go-liblzma) - Go bindings for C library
 * [pxz](http://jnovy.fedorapeople.org/pxz/) - Parallel compression for XZ
+* [pixz](https://github.com/vasi/pixz) - Parallel compression for XZ with indexing
