@@ -106,6 +106,15 @@ func (dest *Index) Cat(src *Index) error {
 	return nil
 }
 
+func (ix1 *Index) Dup() (*Index, error) {
+	ix2 := &Index{C.lzma_index_dup(ix1.C(), nil)}
+	if ix2.ptr == nil {
+		return nil, Error(MEM_ERROR)
+	}
+	runtime.SetFinalizer(ix2, (*Index).End)
+	return ix2, nil
+}
+
 // It is not required that End() be called since NewIndex() sets a Go finalizer
 // on the index pointer to call lzma_index_end().
 func (ix *Index) End() {

@@ -91,10 +91,10 @@ func (z *Stream) GetBuffers() (outBuf, inBuf *bufpipe.BufferPipe) {
 }
 
 func (z *Stream) SetBuffers(outBuf, inBuf *bufpipe.BufferPipe) {
-	if outBuf != nil && outBuf.GetMode() != bufpipe.RingPoll {
+	if outBuf != nil && outBuf.Mode() != bufpipe.RingPoll {
 		panic("internal buffers must be in polling mode")
 	}
-	if inBuf != nil && inBuf.GetMode() != bufpipe.RingPoll {
+	if inBuf != nil && inBuf.Mode() != bufpipe.RingPoll {
 		panic("internal buffers must be in polling mode")
 	}
 	z.outBuf, z.inBuf = outBuf, inBuf
