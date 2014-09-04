@@ -35,7 +35,10 @@ func (r *reader) Read(data []byte) (cnt int, err error) {
 	err = errs.Convert(err, io.EOF, streamEnd)
 	if err == io.EOF { // Ensure all input consumed
 		if _, inBuf := r.GetBuffers(); inBuf.Length() != 0 {
-			return int(rdCnt), lib.Error(lib.DATA_ERROR)
+			return int(rdCnt), dataError
+		}
+		if _, err := r.rd.Read([]byte{0}); err != io.EOF {
+			return int(rdCnt), dataError
 		}
 	}
 	return int(rdCnt), err

@@ -23,3 +23,6 @@ const maxMemory = math.MaxUint64
 
 // Expected error condition when a stream ends.
 var streamEnd = lib.Error(lib.STREAM_END)
+
+// Error condition when stream is corrupted.
+var dataError = lib.Error(lib.DATA_ERROR)
