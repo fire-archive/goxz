@@ -110,8 +110,8 @@ var padZeros = []byte{0, 0, 0, 0}
 // Expected error condition when a stream ends.
 var streamEnd = lib.Error(lib.STREAM_END)
 
-// Buffer size of channels.
-const chanBufSize = 16
+// Error condition when stream is corrupted.
+var dataError = lib.Error(lib.DATA_ERROR)
 
-// The size of literal chunks in the LZMA2 filter.
-const lzmaChunkSize = 1 << 16
+// Error condition when the writer options are invalid.
+var optionsError = lib.Error(lib.OPTIONS_ERROR)
