@@ -97,7 +97,7 @@ func (ix *Index) StreamPadding(padding int64) error {
 	return NewError(C.lzma_index_stream_padding(ix.C(), C.lzma_vli(padding)))
 }
 
-// The source index is automatically freed if Cat() is successful.
+// The source index is automatically freed if Cat is successful.
 func (dest *Index) Cat(src *Index) error {
 	if err := NewError(C.lzma_index_cat(dest.C(), src.C(), nil)); err != nil {
 		return err
@@ -115,8 +115,8 @@ func (ix1 *Index) Dup() (*Index, error) {
 	return ix2, nil
 }
 
-// It is not required that End() be called since NewIndex() sets a Go finalizer
-// on the index pointer to call lzma_index_end().
+// It is not required that End be called since NewIndex sets a Go finalizer on
+// the index pointer to call lzma_index_end.
 func (ix *Index) End() {
 	if ix.ptr != nil {
 		C.lzma_index_end(ix.C(), nil)
