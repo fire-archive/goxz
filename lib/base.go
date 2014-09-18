@@ -56,8 +56,8 @@ func (z *Stream) CodeSlice(action int, dst []byte, src []byte) (int, int, error)
 	return wrCnt, rdCnt, err
 }
 
-// It is not required that End() be called since NewStream() sets a Go finalizer
-// on the stream pointer to call lzma_end().
+// It is not required that End be called since NewStream sets a Go finalizer on
+// the stream pointer to call lzma_end.
 func (z *Stream) End() {
 	C.lzma_end(z.C())
 }
