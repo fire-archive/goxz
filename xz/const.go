@@ -107,11 +107,9 @@ var (
 // Padding between streams is always a multiple of four zero bytes.
 var padZeros = []byte{0, 0, 0, 0}
 
-// Expected error condition when a stream ends.
+// Wrappers around lib errors.
 var streamEnd = lib.Error(lib.STREAM_END)
-
-// Error condition when stream is corrupted.
 var dataError = lib.Error(lib.DATA_ERROR)
-
-// Error condition when the writer options are invalid.
+var formatError = lib.Error(lib.FORMAT_ERROR)
 var optionsError = lib.Error(lib.OPTIONS_ERROR)
+

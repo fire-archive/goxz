@@ -13,30 +13,32 @@ type pipe struct {
 	data interface{}
 }
 
-type pipeSet map[*pipe]bool
+type pipeSet map[int64]*pipe
 
-func (m pipeSet) remove(p *pipe) bool {
-	ok := m[p]
-	delete(m, p)
+func (m pipeSet) remove(p *pipe) (ok bool) {
+	if p != nil {
+		_, ok = m[p.idx]
+		delete(m, p.idx)
+	}
 	return ok
 }
 
 func (m pipeSet) pop() (p *pipe) {
-	for p = range m {
+	for _, p = range m {
+		delete(m, p.idx)
 		break
 	}
-	delete(m, p)
 	return p
 }
 
 func (m pipeSet) push(p *pipe) {
 	if p != nil {
-		m[p] = true
+		m[p.idx] = p
 	}
 }
 
 func (m pipeSet) close() {
-	for p := range m {
+	for _, p := range m {
 		p.Close()
 	}
 }
@@ -54,25 +56,31 @@ type pipePool struct {
 	wrCond sync.Cond
 	rdCond sync.Cond
 
+	waitIdx   int64
 	wrWaitCnt int
 	rdWaitCnt int
 }
 
 func newPipePool() *pipePool {
 	pp := new(pipePool)
-	pp.free = make(map[*pipe]bool)
-	pp.ready = make(map[*pipe]bool)
-	pp.active = make(map[*pipe]bool)
+	pp.free = make(map[int64]*pipe)
+	pp.ready = make(map[int64]*pipe)
+	pp.active = make(map[int64]*pipe)
 	pp.wrCond.L = &pp.mutex
 	pp.rdCond.L = &pp.mutex
+	pp.waitIdx = -1
 	return pp
 }
 
-func (pp *pipePool) getWriter(size, mode int, idx int64, data interface{}) (p *pipe) {
+func (pp *pipePool) getWriter(idx int64, size, mode int, data interface{}) (p *pipe) {
 	pp.mutex.Lock()
 	defer pp.mutex.Unlock()
 
-	for !pp.closed && len(pp.free) == 0 && pp.len >= pp.cap {
+	if idx < 0 {
+		panic("identifier index must be non-negative")
+	}
+
+	for !pp.closed && idx != pp.waitIdx && len(pp.free) == 0 && pp.len >= pp.cap {
 		pp.wrWaitCnt++
 		pp.wrCond.Wait()
 		pp.wrWaitCnt--
@@ -96,28 +104,63 @@ func (pp *pipePool) getWriter(size, mode int, idx int64, data interface{}) (p *p
 		p.Reset()
 	}
 	p.idx, p.data = idx, data
+	if _, ok := pp.ready[idx]; ok {
+		panic("pipe with this index already exists")
+	}
 	pp.ready.push(p)
 	pp.rdCond.Signal()
 	return p
 }
 
-func (pp *pipePool) getReader() (p *pipe) {
+// Get a pipe reader from the pool. If the provided index is negative, then any
+// reader in the pool will be popped.
+//
+// Waiting on a specific index ensures that a getWriter call for that index
+// will succeed. This prevents a deadlock where all buffers are allocated and
+// the writer for the next index in a sequence cannot proceed since no resource
+// slots are available. Specifying an index allows a getWriter call to proceed
+// even if it means violating the capacity limit temporarily.
+func (pp *pipePool) getReader(idx int64) (p *pipe) {
 	pp.mutex.Lock()
 	defer pp.mutex.Unlock()
 
-	for !pp.closed && len(pp.ready) == 0 {
+	var doWait func() bool
+	if idx >= 0 {
+		if pp.waitIdx >= 0 {
+			panic("already waiting on an index identifier")
+		}
+		pp.waitIdx = idx
+		pp.wrCond.Broadcast()
+		doWait = func() bool { return pp.ready[idx] == nil } // Specific pipe
+	} else {
+		doWait = func() bool { return len(pp.ready) == 0 } // Any pipe
+	}
+
+	for !pp.closed && doWait() {
 		pp.rdWaitCnt++
 		pp.rdCond.Wait()
 		pp.rdWaitCnt--
 	}
 
-	p = pp.ready.pop()
+	if idx >= 0 {
+		p = pp.ready[idx]
+		pp.ready.remove(p)
+		pp.waitIdx = -1
+	} else {
+		p = pp.ready.pop()
+	}
 	pp.active.push(p)
 	return p
 }
 
 func (pp *pipePool) iterReader(ptr **pipe) bool {
-	*ptr = pp.getReader()
+	*ptr = pp.getReader(-1)
+	return *ptr != nil
+}
+
+func (pp *pipePool) iterReaderIdx(ptr **pipe, idx *int64) bool {
+	*ptr = pp.getReader(*idx)
+	*idx++
 	return *ptr != nil
 }
 
@@ -179,7 +222,7 @@ func (pp *pipePool) terminate() {
 	defer pp.mutex.Unlock()
 	pp.ready.close()
 	pp.active.close()
-	pp.ready = nil // Make sure getReader() returns nil
+	pp.ready = nil // Make sure getReader returns nil
 
 	pp.closed = true
 	pp.wrCond.Broadcast()
@@ -224,7 +267,7 @@ func (wp *workerPool) setCapacity(cnt int) {
 
 // A single monitor routine runs for the worker pool. It is started as soon as
 // the first worker is spawned. Also, it blocks until all workers have died and
-// then calls the provided end() callback.
+// then calls the provided end callback.
 func (wp *workerPool) monitor() {
 	go func() {
 		wp.group.Wait()

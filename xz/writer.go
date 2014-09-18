@@ -7,7 +7,6 @@ package xz
 import "io"
 import "sync"
 import "bytes"
-import "time"
 import "runtime"
 import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/golib/bufpipe"
@@ -142,7 +141,7 @@ func (w *Writer) Write(data []byte) (cnt int, err error) {
 	case w.maxWorkers != WorkersSync: // Asynchronous operation
 		for cnt < len(data) {
 			if w.pipe == nil {
-				w.pipe = w.inPool.getWriter(w.inSize, w.inMode, w.idx, nil)
+				w.pipe = w.inPool.getWriter(w.idx, w.inSize, w.inMode, nil)
 				if w.pipe == nil {
 					break
 				}
@@ -267,9 +266,11 @@ func (w *Writer) monitor() {
 func (w *Writer) worker(group *sync.WaitGroup, killChan chan bool) {
 	defer group.Done()
 
-	for inBuf := (*pipe)(nil); w.inPool.iterReader(&inBuf); {
+	var inBuf *pipe
+	for w.inPool.iterReader(&inBuf) {
 		sizes := new(sizeStats)
-		outBuf := w.outPool.getWriter(w.outSize, w.outMode, inBuf.idx, sizes)
+
+		outBuf := w.outPool.getWriter(inBuf.idx, w.outSize, w.outMode, sizes)
 		if outBuf != nil {
 			var err error
 			func() {
@@ -301,12 +302,8 @@ func (w *Writer) worker(group *sync.WaitGroup, killChan chan bool) {
 // completed blocks come in asynchronously, they may be out-of-order. The logic
 // here serializes the data before writing them.
 func (w *Writer) writer() {
-	buffers := make(map[int64]*pipe)
 	var err error
 	defer func() {
-		for _, buf := range buffers {
-			w.outPool.restore(buf)
-		}
 		w.errChan <- err
 		close(w.errChan)
 		w.terminate()
@@ -314,28 +311,24 @@ func (w *Writer) writer() {
 	defer errs.Recover(&err)
 
 	var index int64
-	for outBuf := (*pipe)(nil); w.outPool.iterReader(&outBuf); {
-		buffers[outBuf.idx] = outBuf
-		for buffers[index] != nil {
-			buf := buffers[index]
+	var outBuf *pipe
+	for w.outPool.iterReaderIdx(&outBuf, &index) {
+		var wrErr, ixErr error
 
-			// Write data until buffer is closed
-			_, err := buf.WriteTo(w.wr)
-			errs.Panic(err)
+		// Write data until buffer is closed
+		_, wrErr = outBuf.WriteTo(w.wr)
 
-			// Statistic values will be set before buffer is closed
-			if sizes, ok := buf.data.(*sizeStats); ok && sizes.unpadSize != 0 {
-				errs.Panic(w.index.Append(sizes.unpadSize, sizes.uncompSize))
-			}
-
-			w.outPool.restore(buf)
-			delete(buffers, index)
-			index++
+		// Statistic values will be set before buffer is closed
+		if ss, ok := outBuf.data.(*sizeStats); ok && ss.unpadSize != 0 {
+			ixErr = w.index.Append(ss.unpadSize, ss.uncompSize)
 		}
+
+		w.outPool.restore(outBuf)
+		errs.Panic(errs.First(wrErr, ixErr))
 	}
 
-	// Sanity check (no error raised thus far)
-	if len(buffers) > 0 {
+	// Sanity check (all buffers were consumed)
+	if w.outPool.getReader(-1) != nil {
 		panic(dataError)
 	}
 }
@@ -390,7 +383,7 @@ func (w *Writer) blockEncode(wrBuf, rdBuf *bufpipe.BufferPipe) (unpadSize, uncom
 		input, output := rdBuf.Buffer(), wrBuf.Buffer()
 		check := w.flags.GetCheck()
 		cnt, pad := literalBlockEncode(check, input[:rdSize], output)
-		unpadSize, uncompSize = int64(cnt-pad), int64(len(input))
+		unpadSize, uncompSize = int64(cnt-pad), int64(rdSize)
 		wrBuf.Rollback() // Valid for LineMono pipes
 		wrBuf.WriteMark(cnt)
 	} else { // Otherwise, write the normal header
