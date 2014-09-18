@@ -6,7 +6,7 @@ package lzma
 
 import "io"
 import "bitbucket.org/rawr/golib/errs"
-import "bitbucket.org/rawr/golib/bufpipe"
+import "bitbucket.org/rawr/golib/ioutil"
 import "bitbucket.org/rawr/goxz/lib"
 
 type reader struct {
@@ -28,8 +28,7 @@ func (r *reader) Read(data []byte) (cnt int, err error) {
 		return 0, io.ErrClosedPipe
 	}
 
-	wr := bufpipe.NewBufferPipe(data, bufpipe.LineMono)
-	rdCnt, _, err := r.Process(lib.RUN, wr, r.rd)
+	rdCnt, _, err := r.Process(lib.RUN, ioutil.NewWriter(data), r.rd)
 	err = errs.Ignore(err, io.ErrShortWrite)
 	err = errs.Convert(err, io.ErrUnexpectedEOF, io.EOF)
 	err = errs.Convert(err, io.EOF, streamEnd)

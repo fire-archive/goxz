@@ -5,8 +5,8 @@
 package lzma
 
 import "io"
-import "bytes"
 import "bitbucket.org/rawr/golib/errs"
+import "bitbucket.org/rawr/golib/ioutil"
 import "bitbucket.org/rawr/goxz/lib"
 
 type writer struct {
@@ -16,7 +16,7 @@ type writer struct {
 }
 
 func NewWriter(wr io.Writer) (io.WriteCloser, error) {
-	return NewWriterLevel(wr, lib.PRESET_DEFAULT)
+	return NewWriterLevel(wr, DefaultCompression)
 }
 
 func NewWriterLevel(wr io.Writer, level int) (io.WriteCloser, error) {
@@ -36,8 +36,7 @@ func (w *writer) Write(data []byte) (cnt int, err error) {
 		return 0, io.ErrClosedPipe
 	}
 
-	rd := bytes.NewReader(data)
-	_, rdCnt, err := w.Process(lib.RUN, w.wr, rd)
+	_, rdCnt, err := w.Process(lib.RUN, w.wr, ioutil.NewReader(data))
 	return int(rdCnt), errs.Ignore(err, io.EOF)
 }
 
