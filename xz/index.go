@@ -121,10 +121,7 @@ func unrollIndex(rd io.ReaderAt, pos int64, size int64) (*lib.Index, int64) {
 	errs.Panic(err)
 
 	// Check that all input was consumed.
-	if stream.GetTotalIn() != size {
-		errs.Panic(lib.NewError(lib.FORMAT_ERROR))
-	}
-
+	errs.Assert(stream.GetTotalIn() == size, formatError)
 	return index, (pos - size)
 }
 
