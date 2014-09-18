@@ -328,9 +328,7 @@ func (w *Writer) writer() {
 	}
 
 	// Sanity check (all buffers were consumed)
-	if w.outPool.getReader(-1) != nil {
-		panic(dataError)
-	}
+	errs.Assert(w.outPool.getReader(-1) == nil, dataError)
 }
 
 // Initialize a new block with the given sizes.
