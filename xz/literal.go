@@ -61,7 +61,7 @@ func literalBlockSize(check int, uncompSize int64) int64 {
 }
 
 // Compresses the input as literal chunks into the output slice. The output
-// slice must be large enough, as calculated with literalBlockSize().
+// slice must be large enough, as calculated with literalBlockSize.
 func literalBlockEncode(check int, input []byte, output []byte) (cnt, pad int) {
 	// Implementation based on pixz/writer.c
 	literalCheckSupport(check)
