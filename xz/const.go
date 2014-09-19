@@ -5,6 +5,7 @@
 // Package xz implements reading and writing files in the XZ file format.
 package xz
 
+import "math"
 import "errors"
 import "bitbucket.org/rawr/goxz/lib"
 
@@ -103,6 +104,9 @@ var (
 	WarnNoCheck      = errors.New("XZ: No checksum in file")
 	WarnUnknownCheck = errors.New("XZ: Unsupported checksum in file")
 )
+
+// Use the maximum amount of memory necessary.
+const maxMemory = math.MaxUint64
 
 // Padding between streams is always a multiple of four zero bytes.
 var padZeros = []byte{0, 0, 0, 0}

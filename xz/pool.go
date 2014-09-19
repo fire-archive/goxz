@@ -271,7 +271,9 @@ func (wp *workerPool) setCapacity(cnt int) {
 func (wp *workerPool) monitor() {
 	go func() {
 		wp.group.Wait()
-		wp.end() // Call the termination callback
+		if wp.end != nil {
+			wp.end() // Call the termination callback
+		}
 	}()
 }
 
