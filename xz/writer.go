@@ -6,10 +6,10 @@ package xz
 
 import "io"
 import "sync"
-import "bytes"
 import "runtime"
 import "bitbucket.org/rawr/golib/errs"
 import "bitbucket.org/rawr/golib/bufpipe"
+import "bitbucket.org/rawr/golib/ioutil"
 import "bitbucket.org/rawr/goxz/lib"
 
 type sizeStats struct {
@@ -163,7 +163,7 @@ func (w *Writer) Write(data []byte) (cnt int, err error) {
 		}
 		return cnt, nil
 	case w.chunkSize == ChunkStream: // Synchronous stream
-		rd := bytes.NewReader(data)
+		rd := ioutil.NewReader(data)
 		_, rdCnt, err := w.stream.Process(lib.RUN, w.wr, rd)
 		return int(rdCnt), errs.Ignore(err, io.EOF)
 	default: // Synchronous blocks
