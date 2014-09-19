@@ -71,6 +71,7 @@ simply setting the chunk size to ChunkStream.
 
 ## References ##
 
+* [godoc](http://godoc.org/bitbucket.org/rawr/goxz) - Go documentation for this library
 * [liblzma](http://tukaani.org/xz/) - C library for LZMA/XZ compression
 * [compress/lzma](https://code.google.com/p/lzma/) - Pure Go implementation of the LZMA1 filter
 * [go-liblzma](https://github.com/remyoudompheng/go-liblzma) - Go bindings for C library
