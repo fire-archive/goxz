@@ -7,14 +7,13 @@ package xz
 import "io"
 import "bytes"
 import "bitbucket.org/rawr/golib/errs"
-import "bitbucket.org/rawr/golib/ioutil"
 import "bitbucket.org/rawr/goxz/lib"
 
-func decodeIndex(rd io.ReaderAt) (index *lib.Index, err error) {
+func decodeIndex(rd io.ReaderAt, pos int64) (index *lib.Index, err error) {
 	// Implementation based on pixz/reader.c
 	defer errs.Recover(&err)
 
-	for pos := getSize(rd); pos > 0; {
+	for pos > 0 {
 		var preIndex *lib.Index
 		preIndex, pos = prevStreamIndex(rd, pos)
 		if index != nil {
@@ -23,19 +22,6 @@ func decodeIndex(rd io.ReaderAt) (index *lib.Index, err error) {
 		index = preIndex
 	}
 	return index, nil
-}
-
-func getSize(rd io.ReaderAt) int64 {
-	// Get size from seek if available
-	if rds, ok := rd.(io.Seeker); ok {
-		pos, err := ioutil.SeekerSize(rds)
-		errs.Panic(err)
-		return pos
-	}
-
-	pos, err := ioutil.ReaderAtSize(rd)
-	errs.Panic(err)
-	return pos
 }
 
 func prevStreamIndex(rd io.ReaderAt, pos int64) (*lib.Index, int64) {
