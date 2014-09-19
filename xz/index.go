@@ -5,10 +5,9 @@
 package xz
 
 import "io"
-import "os"
-import "math"
 import "bytes"
 import "bitbucket.org/rawr/golib/errs"
+import "bitbucket.org/rawr/golib/ioutil"
 import "bitbucket.org/rawr/goxz/lib"
 
 func decodeIndex(rd io.ReaderAt) (index *lib.Index, err error) {
@@ -29,43 +28,14 @@ func decodeIndex(rd io.ReaderAt) (index *lib.Index, err error) {
 func getSize(rd io.ReaderAt) int64 {
 	// Get size from seek if available
 	if rds, ok := rd.(io.Seeker); ok {
-		oldPos, err := rds.Seek(0, os.SEEK_CUR) // Get current pointer
-		errs.Panic(err)
-		pos, err := rds.Seek(0, os.SEEK_END)
-		errs.Panic(err)
-		_, err = rds.Seek(oldPos, os.SEEK_SET) // Restore former pointer
+		pos, err := ioutil.SeekerSize(rds)
 		errs.Panic(err)
 		return pos
 	}
 
-	// Function to check if the given position is at EOF
-	buf := make([]byte, 2)
-	checkEOF := func(pos int64) int {
-		if pos > 0 {
-			cnt, err := rd.ReadAt(buf[:2], pos-1)
-			errs.Panic(errs.Ignore(err, io.EOF))
-			return 1 - cnt // RetVal[Cnt] = {0: +1, 1: 0, 2: -1}
-		} else { // Special case where position is zero
-			cnt, err := rd.ReadAt(buf[:1], pos-0)
-			errs.Panic(errs.Ignore(err, io.EOF))
-			return 0 - cnt // RetVal[Cnt] = {0: 0, 1: -1}
-		}
-	}
-
-	// Obtain the size via binary search O(log n) => 64 iterations
-	posMin, posMax := int64(0), int64(math.MaxInt64)
-	for posMax >= posMin {
-		pos := (posMax + posMin) / 2
-		switch checkEOF(pos) {
-		case -1: // Below EOF
-			posMin = pos + 1
-		case 0: // At EOF
-			return pos
-		case +1: // Above EOF
-			posMax = pos - 1
-		}
-	}
-	panic("Could not locate EOF") // Should be impossible!
+	pos, err := ioutil.ReaderAtSize(rd)
+	errs.Panic(err)
+	return pos
 }
 
 func prevStreamIndex(rd io.ReaderAt, pos int64) (*lib.Index, int64) {
@@ -112,7 +82,7 @@ func unrollFooter(rd io.ReaderAt, pos int64) (*lib.StreamFlags, int64) {
 func unrollIndex(rd io.ReaderAt, pos int64, size int64) (*lib.Index, int64) {
 	// Create a stream decoder for the index.
 	index := new(lib.Index)
-	stream, err := index.NewStreamDecoder(math.MaxUint64)
+	stream, err := index.NewStreamDecoder(maxMemory)
 	errs.Panic(err)
 	rds := io.NewSectionReader(rd, pos-size, size)
 
