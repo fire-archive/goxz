@@ -4,16 +4,24 @@
 
 *INCOMPLETE PROJECT*
 
+## Packages ##
+
+* [cmd](http://godoc.org/bitbucket.org/rawr/goxz/cmd): Example executables that
+use this library.
+* [xz](http://godoc.org/bitbucket.org/rawr/goxz/xz): Library for reading and 
+writing the newer XZ file format.
+* [lzma](http://godoc.org/bitbucket.org/rawr/goxz/lzma): Library for reading and
+writing the obsolete LZMA_ALONE file format.
+* [lib](http://godoc.org/bitbucket.org/rawr/goxz/lib): Thin wrappers around the
+liblzma C library for use by the xz and lzma packages.
 
 ## Theory ##
 
 *To be continued*
 
-
 ## Results ##
 
 *To be continued*
-
 
 ## Frequently asked questions ##
 
@@ -71,7 +79,6 @@ simply setting the chunk size to ChunkStream.
 
 ## References ##
 
-* [godoc](http://godoc.org/bitbucket.org/rawr/goxz) - Go documentation for this library
 * [liblzma](http://tukaani.org/xz/) - C library for LZMA/XZ compression
 * [compress/lzma](https://code.google.com/p/lzma/) - Pure Go implementation of the LZMA1 filter
 * [go-liblzma](https://github.com/remyoudompheng/go-liblzma) - Go bindings for C library
