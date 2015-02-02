@@ -5,7 +5,7 @@
 package lib
 
 /*
-#cgo LDFLAGS: -llzma
+#cgo pkg-config: liblzma
 #include "lzma.h"
 
 void lzma_stream_init_(lzma_stream* strm) {

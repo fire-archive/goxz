@@ -98,15 +98,15 @@ func (r *Reader) Read(data []byte) (cnt int, err error) {
 		for {
 			switch r.state {
 			case readInit, readHeader:
-				pl("readHeader")
+				//pl("readHeader")
 				canEOF := r.state != readInit
 				header := r.readFull(lib.STREAM_HEADER_SIZE, true, canEOF)
 				r.flags = lib.NewStreamFlags()
 				errs.Panic(r.flags.HeaderDecode(header))
 				r.state = readBlock
 			case readBlock:
-				c1, c2 := r.wrBuf.Pointers()
-				pl("readBlock", c1, c2)
+				//c1, c2 := r.wrBuf.Pointers()
+				//pl("readBlock", c1, c2)
 				if r.stream == nil {
 					val := r.readFull(1, false, false)[0]
 					if val == 0 {
@@ -130,14 +130,14 @@ func (r *Reader) Read(data []byte) (cnt int, err error) {
 					errs.Assert(err != io.ErrShortWrite, nil)
 					errs.Panic(errs.Ignore(err, io.ErrShortWrite, streamEnd))
 					if err == streamEnd {
-						pl(r.block.TotalSize(), r.block.GetUncompressedSize())
-						pl(int64(r.block.GetHeaderSize()) + r.stream.GetTotalIn(), r.stream.GetTotalOut())
+						//pl(r.block.TotalSize(), r.block.GetUncompressedSize())
+						//pl(int64(r.block.GetHeaderSize()) + r.stream.GetTotalIn(), r.stream.GetTotalOut())
 						r.stream.End()
 						r.stream = nil
 					}
 				}
 			case readIndex:
-				pl("readIndex")
+				//pl("readIndex")
 				index := new(lib.Index)
 				// defer index.End()
 				// defer r.index.End()
@@ -153,14 +153,14 @@ func (r *Reader) Read(data []byte) (cnt int, err error) {
 
 				r.state = readFooter
 			case readFooter:
-				pl("readFooter")
+				//pl("readFooter")
 				footer := r.readFull(lib.STREAM_FOOTER_SIZE, true, false)
 				flags := lib.NewStreamFlags()
 				errs.Panic(flags.FooterDecode(footer))
 				errs.Panic(flags.Compare(r.flags))
 				r.state = readPadding
 			case readPadding:
-				pl("readPadding")
+				//pl("readPadding")
 				for ok := true; ok; {
 					padding := r.readFull(4, false, true)
 					if ok = bytes.Equal(padding, padZeros); ok {
